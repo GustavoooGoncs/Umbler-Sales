@@ -1,0 +1,385 @@
+﻿@page "/transacoes"
+@inject TransacaoService TransacaoService
+@inject HttpClient HttpClient
+@using MyProject.Models
+@using System.Text.Json
+@using System.ComponentModel.DataAnnotations
+
+<h3>Simular Venda no Cartão de Crédito</h3>
+<EditForm Model="@novaTransacao" OnValidSubmit="@CriarTransacao">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="cartao" class="form-label">Cartão:</label>
+            <InputText id="cartao" class="form-control" @bind-Value="novaTransacao.Cartao" list="cartaoSuggestions" @onchange="CarregarDadosTransacao" />
+            <datalist id="cartaoSuggestions">
+                <option value="4551870000000183"></option>
+                <option value="5234123412341231"></option>
+            </datalist>
+        </div>
+        <div class="col-md-6">
+            <label for="valor" class="form-label">Valor:</label>
+            <InputNumber id="valor" class="form-control" @bind-Value="novaTransacao.Valor" @oninput="FiltrarValor" />
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="holder" class="form-label">Nome do Titular:</label>
+            <InputText id="holder" class="form-control" @bind-Value="novaTransacao.Holder" />
+        </div>
+        <div class="col-md-6">
+            <label for="expirationDate" class="form-label">Data de Expiração:</label>
+            <InputText id="expirationDate" class="form-control" @bind-Value="novaTransacao.ExpirationDate" list="expirationDateSuggestions" />
+            <datalist id="expirationDateSuggestions">
+                <option value="12/2021"></option>
+                <option value="12/2024"></option>
+            </datalist>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="securityCode" class="form-label">Código de Segurança:</label>
+            <InputText id="securityCode" class="form-control" @bind-Value="novaTransacao.SecurityCode" list="securityCodeSuggestions" />
+            <datalist id="securityCodeSuggestions">
+                <option value="123"></option>
+            </datalist>
+        </div>
+        <div class="col-md-6">
+            <label for="brand" class="form-label">Bandeira:</label>
+            <InputText id="brand" class="form-control" @bind-Value="novaTransacao.Brand" list="brandSuggestions" />
+            <datalist id="brandSuggestions">
+                <option value="Visa"></option>
+                <option value="Master"></option>
+            </datalist>
+        </div>
+    </div>
+    <br>
+    <button type="submit" class="btn btn-primary">Criar Transação</button> <br><br>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(mensagemErro))
+{
+    <div class="alert alert-danger mt-3">@mensagemErro</div>
+}
+
+@if (!string.IsNullOrEmpty(mensagemSucesso))
+{
+    <div class="alert alert-success mt-3">@mensagemSucesso</div>
+}
+
+<textarea rows="10" cols="100" hidden>@bodyRequisicao</textarea>
+
+<h3>Relatório de Transações</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Cartão</th>
+            <th>Valor</th>
+            <th>Status</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var transacao in transacoes)
+        {
+            <tr>
+                <td>@transacao.Id</td>
+                <td>@transacao.Cartao</td>
+                <td>@transacao.Valor</td> 
+                <td>@transacao.Status</td>
+                <td>
+                    <button class="btn @((transacao.Status == "2") ? "btn-success" : "btn-secondary")" @onclick="() => CapturarTransacao(transacao.Id)" disabled="@((transacao.Status == "2" || transacao.Status == "10" || transacao.Status == "3"))">
+                        Capturar
+                    </button>
+                    <button class="btn @((transacao.Status == "10") ? "btn-danger" : "btn-secondary")" @onclick="() => CancelarTransacao(transacao.Id)" disabled="@((transacao.Status == "2" || transacao.Status == "10" || transacao.Status == "3"))">
+                        Cancelar
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private MyProject.Models.Transacao[] transacoes = Array.Empty<MyProject.Models.Transacao>();
+    private MyProject.Models.Transacao novaTransacao = new MyProject.Models.Transacao
+    {
+        Id = string.Empty,
+        Cartao = string.Empty,
+        Valor = 0,
+        Status = string.Empty,
+        Holder = string.Empty,
+        ExpirationDate = string.Empty,
+        SecurityCode = string.Empty,
+        Brand = string.Empty
+    };
+    private string mensagemErro = string.Empty;
+    private string mensagemSucesso = string.Empty;
+    private string bodyRequisicao = string.Empty;
+    private bool camposBloqueados = false;
+
+    private void CarregarDadosTransacao(ChangeEventArgs e)
+    {
+        var cartaoSelecionado = e.Value?.ToString();
+        if (cartaoSelecionado == "5234123412341231")
+        {
+            novaTransacao = new MyProject.Models.Transacao
+            {
+                Id = string.Empty,
+                Cartao = "5234123412341231",
+                Valor = 15700,
+                Status = string.Empty,
+                Holder = "Teste Holder",
+                ExpirationDate = "12/2024",
+                SecurityCode = "123",
+                Brand = "Master"
+            };
+        }
+        else if (cartaoSelecionado == "4551870000000183")
+        {
+            novaTransacao = new MyProject.Models.Transacao
+            {
+                Id = string.Empty,
+                Cartao = "4551870000000183",
+                Valor = 15700,
+                Status = string.Empty,
+                Holder = "Teste Holder",
+                ExpirationDate = "12/2021",
+                SecurityCode = "123",
+                Brand = "Visa"
+            };
+        }
+    }
+
+    private void FiltrarValor(ChangeEventArgs e)
+    {
+        var input = e.Value?.ToString();
+        if (input != null)
+        {
+            novaTransacao.Valor = int.Parse(new string(input.Where(char.IsDigit).ToArray()));
+        }
+    }
+
+    private async Task CriarTransacao()
+    {
+        try
+        {
+            if (!ValidarCartao(novaTransacao))
+            {
+                mensagemErro = "Cartão inválido. Verifique os dados e tente novamente.";
+                mensagemSucesso = string.Empty;
+                return;
+            }
+
+            var requestBody = new PaymentRequest
+            {
+                MerchantOrderId = "2014111703",
+                Payment = new PaymentDetails
+                {
+                    Type = "CreditCard",
+                    Amount = novaTransacao.Valor,
+                    Installments = 1,
+                    SoftDescriptor = novaTransacao.Brand == "Master" ? "523456789ABCD" : "123456789ABCD",
+                    CreditCard = new CreditCardDetails
+                    {
+                        CardNumber = novaTransacao.Cartao,
+                        Holder = novaTransacao.Holder,
+                        ExpirationDate = novaTransacao.ExpirationDate,
+                        SecurityCode = novaTransacao.SecurityCode,
+                        Brand = novaTransacao.Brand
+                    }
+                }
+            };
+
+            bodyRequisicao = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { WriteIndented = true });
+
+            var createdTransacao = await TransacaoService.CriarTransacaoCartaoCreditoAsync(novaTransacao);
+            novaTransacao.Id = createdTransacao.Id;
+            novaTransacao.Status = createdTransacao.Status.ToString();
+
+            if (createdTransacao.Status == "3")
+            {
+                mensagemErro = "Transação negada.";
+                mensagemSucesso = string.Empty;
+                camposBloqueados = true;
+            }
+            else
+            {
+                mensagemErro = string.Empty; // Limpa a mensagem de erro em caso de sucesso
+                mensagemSucesso = $"Transação criada com sucesso! PaymentId: {createdTransacao.Id}"; // Define a mensagem de sucesso com PaymentId
+                camposBloqueados = false;
+            }
+
+            transacoes = transacoes.Append(createdTransacao).ToArray();
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = "Erro ao criar transação: " + ex.Message;
+            mensagemSucesso = string.Empty; // Limpa a mensagem de sucesso em caso de erro
+            camposBloqueados = true;
+        }
+    }
+
+    private bool ValidarCartao(MyProject.Models.Transacao transacao)
+    {
+        if (transacao.Brand == "Visa")
+        {
+            return transacao.Cartao.StartsWith("4") && 
+                   (transacao.Cartao.Length == 13 || transacao.Cartao.Length == 16) && 
+                   transacao.SecurityCode.Length == 3;
+        }
+        else if (transacao.Brand == "Master")
+        {
+            return transacao.Cartao.StartsWith("5") && 
+                   transacao.Cartao.Length == 16 && 
+                   transacao.SecurityCode.Length == 3;
+        }
+        return false;
+    }
+
+    private async Task CapturarTransacao(string id)
+    {
+        var url = $"https://apisandbox.cieloecommerce.cielo.com.br/1/sales/{id}/capture";
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Put, url);
+            request.Headers.Add("MerchantKey", "CNUYAHXBYMNUUCGJGSEUKQPCCMXIXQXOOTECEZZE");
+            request.Headers.Add("MerchantId", "c0d7d51b-918b-4703-8ef3-227fa39ced75");
+
+            var response = await HttpClient.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                var capturaResponse = JsonSerializer.Deserialize<CapturaResponse>(responseContent);
+
+                if (capturaResponse != null)
+                {
+                    mensagemSucesso = "Transação capturada com sucesso!";
+                    AtualizarStatusTransacao(id, capturaResponse.Status);
+                }
+                else
+                {
+                    mensagemErro = "Erro ao capturar transação: resposta nula.";
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                mensagemErro = $"Erro ao capturar transação: {response.ReasonPhrase}. Detalhes: {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao capturar transação: {ex.Message}";
+        }
+    }
+
+    private async Task CancelarTransacao(string id)
+    {
+        var url = $"https://apisandbox.cieloecommerce.cielo.com.br/1/sales/{id}/void";
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Put, url);
+            request.Headers.Add("MerchantKey", "CNUYAHXBYMNUUCGJGSEUKQPCCMXIXQXOOTECEZZE");
+            request.Headers.Add("MerchantId", "c0d7d51b-918b-4703-8ef3-227fa39ced75");
+
+            var response = await HttpClient.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                var cancelamentoResponse = JsonSerializer.Deserialize<CancelamentoResponse>(responseContent);
+
+                if (cancelamentoResponse != null)
+                {
+                    mensagemSucesso = "Transação cancelada com sucesso!";
+                    AtualizarStatusTransacao(id, cancelamentoResponse.Status);
+                }
+                else
+                {
+                    mensagemErro = "Erro ao cancelar transação: resposta nula.";
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                mensagemErro = $"Erro ao cancelar transação: {response.ReasonPhrase}. Detalhes: {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao cancelar transação: {ex.Message}";
+        }
+    }
+
+    private void AtualizarStatusTransacao(string id, int novoStatus)
+    {
+        var transacao = transacoes.FirstOrDefault(t => t.Id == id);
+        if (transacao != null)
+        {
+            transacao.Status = novoStatus.ToString();
+        }
+    }
+
+    public class CapturaResponse
+    {
+        public required int Status { get; set; }
+        public required int ReasonCode { get; set; }
+        public required string ReasonMessage { get; set; }
+        public required string ProviderReturnCode { get; set; }
+        public required string ProviderReturnMessage { get; set; }
+        public required string ReturnCode { get; set; }
+        public required string ReturnMessage { get; set; }
+        public required string Tid { get; set; }
+        public required string ProofOfSale { get; set; }
+        public required string AuthorizationCode { get; set; }
+        public required List<Link> Links { get; set; }
+    }
+
+    public class CancelamentoResponse
+    {
+        public required int Status { get; set; }
+        public required int ReasonCode { get; set; }
+        public required string ReasonMessage { get; set; }
+        public required string ProviderReturnCode { get; set; }
+        public required string ProviderReturnMessage { get; set; }
+        public required string ReturnCode { get; set; }
+        public required string ReturnMessage { get; set; }
+        public required string Tid { get; set; }
+        public required string ProofOfSale { get; set; }
+        public required string AuthorizationCode { get; set; }
+        public required List<Link> Links { get; set; }
+    }
+
+    public class Link
+    {
+        public required string Method { get; set; }
+        public required string Rel { get; set; }
+        public required string Href { get; set; }
+    }
+
+    public class PaymentRequest
+    {
+        public required string MerchantOrderId { get; set; }
+        public required PaymentDetails Payment { get; set; }
+    }
+
+    public class PaymentDetails
+    {
+        public required string Type { get; set; }
+        public required decimal Amount { get; set; }
+        public required int Installments { get; set; }
+        public required string SoftDescriptor { get; set; }
+        public required CreditCardDetails CreditCard { get; set; }
+    }
+
+    public class CreditCardDetails
+    {
+        public required string CardNumber { get; set; }
+        public required string Holder { get; set; }
+        public required string ExpirationDate { get; set; }
+        public required string SecurityCode { get; set; }
+        public required string Brand { get; set; }
+    }
+}

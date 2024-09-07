@@ -1,0 +1,15 @@
+@code {
+    [Parameter] public string AlertType { get; set; } = "alert-info";
+    [Parameter] public string AlertMessage { get; set; } = string.Empty;
+    [Parameter] public bool Dismissible { get; set; } = false;
+}
+
+<div class="alert @AlertType @(Dismissible ? "alert-dismissible fade show" : "")" role="alert">
+    @if (Dismissible)
+    {
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    }
+    @AlertMessage
+</div>
